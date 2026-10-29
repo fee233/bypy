@@ -26,11 +26,22 @@
 
 ## 安装
 
+一键（不需要克隆仓库，连 bypy 一起装好）：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/fee233/bypy/master/bypyx/deploy/install.sh)
+```
+
+手动安装：
+
 ```bash
 python3 -m venv /opt/bypy-venv
 /opt/bypy-venv/bin/pip install setuptools wheel          # 3.12+ 的 venv 默认不带
-/opt/bypy-venv/bin/pip install -e /path/to/bypy/bypyx    # -e 便于后续改动即时生效
+/opt/bypy-venv/bin/pip install bypy                      # 凭据来源 + 授权流程
+/opt/bypy-venv/bin/pip install "bypyx @ git+https://github.com/fee233/bypy.git#subdirectory=bypyx"
 ```
+
+第三行直接从 GitHub 安装子目录包，本机不需要 git。开发时改用 `-e /path/to/bypy/bypyx` 可编辑安装。
 
 授权（只需要一次，沿用 bypy 的方式）：
 

@@ -19,14 +19,25 @@
 
 ## 安装（只做一次）
 
+**一键（推荐，不需要克隆仓库）：**
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/fee233/bypy/master/bypyx/deploy/install.sh)
+```
+
+脚本做的事：建 venv → 装 bypy（凭据与授权流程）→ 从 GitHub 直装 bypyx → 生成示例配置 → 校验授权。也可以先下载再执行，`bash install.sh /自定义venv路径` 可指定安装位置。
+
+**手动等价写法**（脚本失败时排查用）：
+
 ```bash
 python3 -m venv /opt/bypy-venv
 /opt/bypy-venv/bin/pip install setuptools wheel        # 3.12+ 的 venv 默认不带
-/opt/bypy-venv/bin/pip install -e /www/wwwroot/shells/bypy-sync/bypyx-src
+/opt/bypy-venv/bin/pip install bypy                    # 凭据来源 + 授权流程
+/opt/bypy-venv/bin/pip install "bypyx @ git+https://github.com/fee233/bypy.git#subdirectory=bypyx"
 /opt/bypy-venv/bin/bypy info                           # 授权，浏览器里登录后回填 code
 ```
 
-`-e`（可编辑安装）的好处：以后改 `bypyx-src/` 里的代码，不用重新安装就生效。
+`#subdirectory=bypyx` 表示 bypyx 是仓库的子目录包，pip 会自行下载打包，本机不需要 git。授权也可以从旧机拷 `~/.bypy/bypy.json` 免登录。
 
 ## 常用命令
 
