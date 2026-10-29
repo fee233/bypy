@@ -1,6 +1,12 @@
 bypy - Python client for Baidu Yun (Personal Cloud Storage) 百度云/百度网盘Python客户端
 ====================================================================================
 
+> **本 fork 新增 `bypyx/`**：百度已于 2026-10 下线 bypy 使用的旧 PCS 分片上传接口，
+> 导致所有 >20MB 的文件上传失败（`31064 file is not authorized`，bypy 误报为 `Slice MD5 mismatch`）。
+> `bypyx` 是走官方 xpan 接口的重写版，含多目录镜像同步、断点续传、文件级并发，
+> 直接复用 bypy 的授权文件。用法见 [`bypyx/README.md`](bypyx/README.md)。
+> 上游 `bypy/` 目录未作改动。
+
 [![alt text](https://img.shields.io/pypi/v/bypy.svg "PyPi Version")](https://pypi.python.org/pypi/bypy)
 [![alt text](https://img.shields.io/pypi/dm/bypy.svg "PyPi Downloads")](https://pypi.python.org/pypi/bypy)
 [![alt text](https://travis-ci.org/houtianze/bypy.svg "Build status")](https://travis-ci.org/houtianze/bypy)

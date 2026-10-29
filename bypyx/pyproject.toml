@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bypyx"
+version = "0.1.0"
+description = "百度网盘同步引擎（xpan 接口，接替 bypy 已失效的分片上传）"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+dependencies = ["requests>=2.20"]
+
+[project.scripts]
+bypyx = "bypyx.__main__:main"
+
+[tool.setuptools]
+packages = ["bypyx"]
