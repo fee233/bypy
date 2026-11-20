@@ -23,7 +23,7 @@ import logging
 import os
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
@@ -62,6 +62,8 @@ class Syncer:
         self.cfg = cfg
         self.dry_run = dry_run
         self.workers = max(1, cfg.num("WORKERS", 3))
+        # 远端目录列表的并发度。串行列 2780 个目录要 17.5 分钟，16 线程 46 秒
+        self.list_workers = max(1, cfg.num("LIST_WORKERS", 16))
         self.retry = max(1, cfg.num("RETRY", 5))
         self.timeout = cfg.num("TASK_TIMEOUT", 0)
         self.slice = cfg.size("SLICE", 4 * 1024 * 1024) or 4 * 1024 * 1024
@@ -146,34 +148,74 @@ class Syncer:
 
     def _walk_remote(self, root: str, task: "Task"
                      ) -> Tuple[Dict[str, dict], Set[str]]:
+        """遍历远端树。目录列表是 IO 密集的串行瓶颈，这里用线程池并行。
+
+        实测 immich（2780 目录 / 10482 文件）：串行 17.5 分钟，16 线程 46 秒。
+        并发度由 LIST_WORKERS 控制，默认 16；百度对 list 的限流比 upload 宽松，
+        16 线程实测 0 错误，仍保留退避重试（在 api._call 里）。
+        """
         files: Dict[str, dict] = {}
         dirs: Set[str] = set()
         keep = task.matches
-        queue: List[str] = [""]
-        while queue:
-            rel = queue.pop()
-            cur = root if not rel else root + "/" + rel
-            try:
-                items = self.api.list_dir(cur)
-            except XpanError as e:
-                if e.errno in (-9, -8):  # 目录不存在
+        workers = self.list_workers
+        pending: List[str] = [""]
+
+        if workers <= 1:
+            while pending:
+                rel = pending.pop()
+                items = self._list_rel(root, rel)
+                if not items:
                     continue
-                raise
-            for it in items:
-                name = it.get("server_filename")
-                if not name:
-                    continue
-                child = name if not rel else rel + "/" + name
-                if it.get("isdir"):
-                    if task.skip_dir(name):
-                        continue  # 整棵跳过：既不遍历也不参与删除
-                    dirs.add(child)
-                    queue.append(child)
-                elif keep(child):
-                    files[child] = it
-            log.debug("    列目录 %s：%d 项（累计文件 %d）"
-                      % (rel or "/", len(items), len(files)))
+                for it in items:
+                    self._absorb(it, rel, task, keep, files, dirs, pending)
+            return files, dirs
+
+        fut2rel: Dict[object, str] = {}
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            while True:
+                if self._deadline_passed():
+                    raise TaskTimeout()
+                # 保持 2 倍并发数的在途请求，避免等一批再发一批造成空转
+                while pending and len(fut2rel) < workers * 2:
+                    rel = pending.pop()
+                    fut2rel[pool.submit(self._list_rel, root, rel)] = rel
+                if not fut2rel:
+                    break
+                done, _ = wait(list(fut2rel), return_when=FIRST_COMPLETED)
+                for fut in done:
+                    rel = fut2rel.pop(fut)
+                    items = fut.result()  # 目录不存在返回 None，其它异常向上抛
+                    if not items:
+                        continue
+                    for it in items:
+                        self._absorb(it, rel, task, keep, files, dirs, pending)
         return files, dirs
+
+    def _list_rel(self, root: str, rel: str) -> Optional[List[dict]]:
+        cur = root if not rel else root + "/" + rel
+        try:
+            items = self.api.list_dir(cur)
+        except XpanError as e:
+            if e.errno in (-9, -8):  # 目录不存在
+                return None
+            raise
+        log.debug("    列目录 %s：%d 项" % (rel or "/", len(items)))
+        return items
+
+    @staticmethod
+    def _absorb(it: dict, rel: str, task: "Task", keep: Callable[[str], bool],
+                files: Dict[str, dict], dirs: Set[str], pending: List[str]) -> None:
+        name = it.get("server_filename")
+        if not name:
+            return
+        child = name if not rel else rel + "/" + name
+        if it.get("isdir"):
+            if task.skip_dir(name):
+                return  # 整棵跳过：既不遍历也不参与删除
+            dirs.add(child)
+            pending.append(child)
+        elif keep(child):
+            files[child] = it
 
     @staticmethod
     def _remote_root(task: Task) -> str:

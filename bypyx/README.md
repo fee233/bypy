@@ -93,6 +93,7 @@ bypyx 新增的可选项：
 | 配置 | 默认 | 说明 |
 |---|---|---|
 | `WORKERS` | 3 | 同时上传的文件数。小文件多时调到 8 |
+| `LIST_WORKERS` | 16 | 列远端目录的并发线程数。串行时 immich 2780 个目录要 17.5 分钟，16 线程 55 秒 |
 | `SLICE` | 4MB | 单个分片大小。超过 64MB 会被强制降为 4MB |
 | `EXCLUDE_DIRS_<任务名>` | 空 | 按目录名整棵跳过，逗号分隔，如 `encoded-video,thumbs` |
 | `TOKEN_PATH` | `$BYPY_HOME/.bypy/bypy.json` | 授权文件位置 |
